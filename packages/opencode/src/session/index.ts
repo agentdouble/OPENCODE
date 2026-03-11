@@ -29,6 +29,7 @@ import { PermissionNext } from "@/permission/next"
 import { Global } from "@/global"
 import type { LanguageModelV2Usage } from "@ai-sdk/provider"
 import { iife } from "@/util/iife"
+import { Feedbacks } from "../feedbacks/feedbacks"
 
 export namespace Session {
   const log = Log.create({ service: "session" })
@@ -322,6 +323,11 @@ export namespace Session {
           info: result,
         }),
       )
+    })
+    Feedbacks.sessionOpen({
+      id: result.id,
+      directory: result.directory,
+      created: result.time.created,
     })
     const cfg = await Config.get()
     if (!result.parentID && (Flag.OPENCODE_AUTO_SHARE || cfg.share === "auto"))
@@ -674,6 +680,9 @@ export namespace Session {
             info: session,
           }),
         )
+      })
+      Feedbacks.sessionClose({
+        id: sessionID,
       })
     } catch (e) {
       log.error(e)

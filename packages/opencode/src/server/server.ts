@@ -43,6 +43,7 @@ import { PermissionRoutes } from "./routes/permission"
 import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
 import { lazy } from "@/util/lazy"
+import { Feedbacks } from "../feedbacks/feedbacks"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -237,6 +238,42 @@ export namespace Server {
             workspace: z.string().optional(),
           }),
         ),
+      )
+      .patch(
+        "/feedbacks/question/rating",
+        describeRoute({
+          summary: "Rate assistant response",
+          description: "Record or update a thumbs up/down rating for the latest question in a session.",
+          operationId: "feedbacks.question.rate",
+          responses: {
+            200: {
+              description: "Rating recorded",
+              content: {
+                "application/json": {
+                  schema: resolver(z.boolean()),
+                },
+              },
+            },
+            ...errors(400),
+          },
+        }),
+        validator(
+          "json",
+          z.object({
+            sessionID: z.string(),
+            userMessageID: z.string().optional(),
+            rating: z.enum(["up", "down", "none"]),
+          }),
+        ),
+        async (c) => {
+          const input = c.req.valid("json")
+          await Feedbacks.markQuestionRated({
+            sessionID: input.sessionID,
+            rating: input.rating,
+            userMessageID: input.userMessageID,
+          })
+          return c.json(true)
+        },
       )
       .route("/project", ProjectRoutes())
       .route("/pty", PtyRoutes())

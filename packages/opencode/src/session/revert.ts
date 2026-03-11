@@ -10,6 +10,7 @@ import { Storage } from "@/storage/storage"
 import { Bus } from "../bus"
 import { SessionPrompt } from "./prompt"
 import { SessionSummary } from "./summary"
+import { Feedbacks } from "../feedbacks/feedbacks"
 
 export namespace SessionRevert {
   const log = Log.create({ service: "session.revert" })
@@ -23,6 +24,9 @@ export namespace SessionRevert {
 
   export async function revert(input: RevertInput) {
     SessionPrompt.assertNotBusy(input.sessionID)
+    Feedbacks.markQuestionUndone({
+      sessionID: input.sessionID,
+    })
     const all = await Session.messages({ sessionID: input.sessionID })
     let lastUser: MessageV2.User | undefined
     const session = await Session.get(input.sessionID)
@@ -85,7 +89,11 @@ export namespace SessionRevert {
     const session = await Session.get(input.sessionID)
     if (!session.revert) return session
     if (session.revert.snapshot) await Snapshot.restore(session.revert.snapshot)
-    return Session.clearRevert(input.sessionID)
+    const next = await Session.clearRevert(input.sessionID)
+    Feedbacks.markQuestionRedone({
+      sessionID: input.sessionID,
+    })
+    return next
   }
 
   export async function cleanup(session: Session.Info) {
