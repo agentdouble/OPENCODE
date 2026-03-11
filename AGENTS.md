@@ -4,6 +4,13 @@
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
 - Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility.
 
+## Project Direction (`mia` fork)
+
+- This repo is being forked from `opencode` into a version named `mia`.
+- Primary goal: keep the delta from upstream `opencode` as small as possible.
+- Planned product changes: update the frontend, and add a frontend flow to submit feedback stored in a table.
+- Until explicitly requested otherwise, limit changes to what is needed now (currently: `AGENTS.md` only).
+
 ## Style Guide
 
 ### General Principles
