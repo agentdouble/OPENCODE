@@ -1328,11 +1328,17 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const local = useLocal()
   const { theme } = useTheme()
   const sync = useSync()
+  const sdk = useSDK()
+  const toast = useToast()
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
+  const [vote, setVote] = createSignal<"up" | "down" | "none">("none")
+  const up = "☝ Like"
+  const down = "☟ Dislike"
 
   const final = createMemo(() => {
     return props.message.finish && !["tool-calls", "unknown"].includes(props.message.finish)
   })
+  const can = createMemo(() => final() && !!props.message.time.completed)
 
   const duration = createMemo(() => {
     if (!final()) return 0
@@ -1341,6 +1347,31 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     if (!user || !user.time) return 0
     return props.message.time.completed - user.time.created
   })
+
+  const send = async (next: "up" | "down") => {
+    setVote(next)
+    const url = new URL("/feedbacks/question/rating", sdk.url)
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    }
+    if (sync.data.path.directory) {
+      headers["x-opencode-directory"] = sync.data.path.directory
+    }
+    await fetch(url.toString(), {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        sessionID: props.message.sessionID,
+        userMessageID: props.message.parentID,
+        rating: next,
+      }),
+    }).catch(() => {
+      toast.show({
+        message: "Failed to save rating",
+        variant: "error",
+      })
+    })
+  }
 
   const keybind = useKeybind()
 
@@ -1385,8 +1416,8 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       </Show>
       <Switch>
         <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box paddingLeft={3}>
-            <text marginTop={1}>
+          <box paddingLeft={3} marginTop={1} width="100%" flexDirection="row" justifyContent="space-between" gap={1}>
+            <text>
               <span
                 style={{
                   fg:
@@ -1406,6 +1437,34 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
                 <span style={{ fg: theme.textMuted }}> · interrupted</span>
               </Show>
             </text>
+            <Show when={can() && props.message.error?.name !== "MessageAbortedError"}>
+              <box flexDirection="row" gap={1} flexShrink={0}>
+                <text onMouseUp={() => send("up")}>
+                  <span
+                    style={{
+                      fg: vote() === "up" ? theme.text : theme.textMuted,
+                      bold: vote() === "up",
+                    }}
+                  >
+                    {" "}
+                    {up}
+                    {" "}
+                  </span>
+                </text>
+                <text onMouseUp={() => send("down")}>
+                  <span
+                    style={{
+                      fg: vote() === "down" ? theme.text : theme.textMuted,
+                      bold: vote() === "down",
+                    }}
+                  >
+                    {" "}
+                    {down}
+                    {" "}
+                  </span>
+                </text>
+              </box>
+            </Show>
           </box>
         </Match>
       </Switch>

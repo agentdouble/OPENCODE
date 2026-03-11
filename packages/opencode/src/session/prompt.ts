@@ -46,6 +46,7 @@ import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
+import { Feedbacks } from "../feedbacks/feedbacks"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -676,6 +677,10 @@ export namespace SessionPrompt {
         tools,
         model,
         toolChoice: format.type === "json_schema" ? "required" : undefined,
+      })
+      await feedback({
+        user: lastUserMsg,
+        assistant: processor.message,
       })
 
       // If structured output was captured, save it and exit immediately
@@ -1459,6 +1464,51 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       return input.messages
     }
     return input.messages
+  }
+
+  async function feedback(input: {
+    user?: MessageV2.WithParts
+    assistant: MessageV2.Assistant
+  }) {
+    if (!input.user) return
+    const parts = await MessageV2.parts(input.user.info.id)
+    const question = parts
+      .filter((part) => part.type === "text" && !("synthetic" in part && part.synthetic))
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n\n")
+      .trim()
+    if (!question) return
+
+    const assistantParts = await MessageV2.parts(input.assistant.id)
+    const response = assistantParts
+      .filter((part) => part.type === "text" && !("synthetic" in part && part.synthetic))
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n\n")
+      .trim()
+    const reasoning = assistantParts
+      .filter((part) => part.type === "reasoning")
+      .map((part) => (part.type === "reasoning" ? part.text : ""))
+      .join("\n\n")
+      .trim()
+    const err = !!input.assistant.error
+    if (!response && !err) return
+    const tokens = input.assistant.tokens
+    const total = tokens.total ?? tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+
+    await Feedbacks.recordQuestion({
+      sessionID: input.user.info.sessionID,
+      question,
+      userMessageID: input.user.info.id,
+      metadata: {
+        userAgent: input.user.info.agent,
+        response,
+        tokens,
+        tokensTotal: total,
+        reasoning: reasoning || null,
+        hadError: err,
+        error: input.assistant.error ?? null,
+      },
+    })
   }
 
   export const ShellInput = z.object({
